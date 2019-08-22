@@ -2,6 +2,8 @@ from flask import Flask, request, jsonify, make_response, abort
 import data
 from db import DataBase
 import logging
+import requests
+import json
 logging.basicConfig(filename="main.log", level=logging.DEBUG)
 
 app = Flask(__name__)
@@ -17,11 +19,30 @@ def not_found(error):
 def index():
     return "Hello, Nuaaer"
 
+@app.route('/api/GetOpenid', methods=['POST'])
+def GetOpenid():
+    
+    appid = request.json.get('appid')
+    secret = request.json.get('secret')
+    js_code = request.json.get('js_code')
+
+    text = requests.get(f"https://api.weixin.qq.com/sns/jscode2session?appid={appid}&secret={secret}&js_code={js_code}&grant_type=authorization_code").text
+    jtext = json.loads(text)
+    if not "openid" in text:
+        abort(400)
+    openid = jtext["openid"]
+    status, identity, id, name = database.CheckBind(openid)
+    if not status:
+        abort(400)
+    res = {"status": "success", "identity": identity, "id": id, "openid": openid, "name": name}
+    return jsonify(res)
+
 @app.route('/api/BindOpenid', methods=['POST'])
 def BindOpenid():
     openid = request.json.get('openid')
     id = request.json.get('id')
-    status, recordid = data.BindOpenid(database, openid, id)
+    identity_number = request.json.get('identity_number')
+    status, recordid = data.BindOpenid(database, openid, id, identity_number)
     if not status:
         abort(400)
     res = {"status": "success", "recordid": recordid}

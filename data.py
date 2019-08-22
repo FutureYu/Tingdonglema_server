@@ -59,30 +59,44 @@ def Stamp2Stdlevel(s):
         return -1
 
 
-def BindOpenid(database, openid, id):
+def BindOpenid(database, openid, id, identity_number):
+    if None in (openid, id, identity_number):
+        return False, None
+    
     openid = str(openid)
     id = str(id)
-    if None in (openid, id):
-        return False, None
+    identity_number = str(identity_number)
+
     result = database.BindOpenid(openid, id)
     if result == None:
         return False, None 
     return True, result
 
 def UploadRecord(database, openid, room, campus, row, col, _time):
+    if None in (openid, room, campus, row, col, _time):
+        return False, None
+    
     openid = str(openid)
     room = str(room)
     campus = int(campus)
     row = int(row)
     col = int(col)
     _time = int(_time)
-    if None in (openid, room, campus, row, col, _time):
+
+    status, _, _, _ = database.CheckBind(openid)
+    if status == False:
         return False, None
-    if not database.CheckBind(openid, id):
-        return False, None
-    logging.debug(_time)
     level = Stamp2Level(_time)
     late = Stamp2Stdlevel(_time)
+    stamp = int(time.mktime(time.strptime(_time + " 00:00:00", "%Y-%m-%d %H:%M:%S")))
+    l, r = Level2Stamp(level)
+    startStamp, endStamp = stamp + l, stamp + r
+    if not database.CheckSeatAvailable(room, campus, row, col, startStamp, endStamp):
+        return False, None
+
+    if not database.CheckStudentAvailable(openid, startStamp, endStamp):
+        database.SwitchSeat(openid, room, campus, row, col, startStamp, endStamp)
+        return False, None
 
     result = database.UploadRecord(openid, room, campus, row, col, _time, level, late)
     if result == None:
@@ -90,17 +104,18 @@ def UploadRecord(database, openid, room, campus, row, col, _time):
     return True, result
 
 def GetStudentHistory(database, openid, startTime):
-    openid = str(openid)
-    startTime = str(startTime)
     if None in (openid, startTime):
         return False, None
-    if not database.CheckBind(openid, id):
+    
+    openid = str(openid)
+    startTime = str(startTime)
+
+    status, _, _, _ = database.CheckBind(openid)
+    if status == False:
         return False, None
 
     endStamp = int(time.time())
     startStamp = int(time.mktime(time.strptime(startTime, "%Y-%m-%d")))
-    logging.debug(startStamp)
-    logging.debug(endStamp)
     histories = database.GetStudentHistory(openid, startStamp, endStamp)
     result = []
     for history in histories:
@@ -109,10 +124,12 @@ def GetStudentHistory(database, openid, startTime):
     return True, {"res": result, "count": len(result)}
 
 def GetRoomHistory(database, room, _time):
-    _time = str(_time)
-    room = str(room)
     if None in (room, _time):
         return False, None
+    
+    _time = str(_time)
+    room = str(room)
+
     level = _time.split()[1]
     _time = _time.split()[0]
     stamp = int(time.mktime(time.strptime(_time + " 00:00:00", "%Y-%m-%d %H:%M:%S")))
