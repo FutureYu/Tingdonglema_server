@@ -1,4 +1,3 @@
-# 增删改查api
 import pymongo
 import logging
 
@@ -23,13 +22,18 @@ class DataBase:
         query = {"_id": id, "_identity_number": identity_number} 
         mydoc = mycol.find_one(query)
         if mydoc == None:
-            return None
+            return None, None, None, None
         if mydoc["_openid"] != "null":
-            return None
+            return None, None, None, None
         
         newvalues = { "$set": { "_openid": openid } }
         mycol.update_one(query, newvalues)
-        return id
+        if mydoc["_is_student"] == True:
+            return id, 1, mydoc["_id"], mydoc["_name"]
+        elif mydoc["_is_student"] == False:
+            return id, 2, mydoc["_id"], mydoc["_name"]
+
+
 
     def UploadRecord(self, openid, room, campus, row, col, time, level, late):
         mycol = self.db["record"]
@@ -53,15 +57,15 @@ class DataBase:
     def CheckSeatAvailable(self, room, campus, row, col, startStamp, endStamp):
         mycol = self.db["record"]
         query = { '$and': [ { '_time':{'$gte':startStamp}  }, {'_time':{'$lt':endStamp} } ], '_room': room, "_campus": campus, "_row": row, "_col": col}
-        mydoc = mycol.find(query)
-        if len(mydoc):
+        mydoc = mycol.find_one(query)
+        if not mydoc:
             return True
 
     def CheckStudentAvailable(self, openid, startStamp, endStamp):
         mycol = self.db["record"]
         query = { '$and': [ { '_time':{'$gte':startStamp}  }, {'_time':{'$lt':endStamp} } ], '_openid': openid}
-        mydoc = mycol.find(query)
-        if len(mydoc):
+        mydoc = mycol.find_one(query)
+        if not mydoc:
             return True
 
     def GetStudentHistory(self, openid, startStamp, endStamp):
