@@ -2,7 +2,8 @@ import pymongo
 import logging
 
 class DataBase:
-    db = pymongo.MongoClient('mongodb://localhost:27017/')
+    def __init__(self, db_name):
+        self.db = pymongo.MongoClient('mongodb://localhost:27017/')[db_name]
  
     def CheckBind(self, openid, qtype="openid"):
         mycol = self.db["user"]
