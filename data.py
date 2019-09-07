@@ -1,5 +1,8 @@
 import time
 import logging
+import requests
+import json
+import bson
 
 def Level2Stamp(l):    
     l = int(l)
@@ -13,9 +16,9 @@ def Level2Stamp(l):
         return (15 * 60 + 45) * 60, (18 * 60) * 60
     elif l == 5:
         return (18 * 60) * 60, (20 * 60 + 30) * 60
+    else:
+        return (23 * 60 + 59) * 60, (23 * 60 + 59) * 60
 
-import requests
-import json
 def Stdlevel2Stamp(l):
     l = int(l)
     if l == 1:
@@ -28,10 +31,11 @@ def Stdlevel2Stamp(l):
         return (15 * 60 + 45) * 60, (16 * 60 + 15) * 60
     elif l == 5:
         return (18 * 60) * 60, (18 * 60 + 15) * 60
+    else:
+        return (23 * 60 + 59) * 60, (23 * 60 + 59) * 60
 
 def Stamp2Level(s):
-    s = int(s) - (int(s) // 86400 * 86400 - 28800)
-    logging.debug(s)
+    s = int(s) - (((int(s) + 28800) // 86400 * 86400) - 28800)
     if 0 <= s < (9 * 60 + 45) * 60:
         return 1
     elif (9 * 60 + 45) * 60 <= s < (12 * 60) * 60:
@@ -46,7 +50,7 @@ def Stamp2Level(s):
         return -1
 
 def Stamp2Stdlevel(s):
-    s = int(s) - (int(s) // 86400 * 86400 - 28800)
+    s = int(s) - (((int(s) + 28800) // 86400 * 86400) - 28800)
     if 0 <= s < (8 * 60) * 60:
         return 1
     elif (9 * 60 + 45) * 60 <= s < (10 * 60 + 15) * 60:
@@ -60,6 +64,18 @@ def Stamp2Stdlevel(s):
     else:
         return -1
 
+def GetStudentInfo(database, openid, id):
+    if openid != None:
+        openid = str(openid)
+        status, identity, id, name, _ = database.CheckBind(openid, qtype="openid")
+    elif id != None:
+        id = str(id)
+        status, identity, id, name, _ = database.CheckBind(id, qtype="id")
+    if status:
+        return 0, identity, id, name
+    else:
+        return 2, identity, id, name
+
 def GetOpenid(database, appid, secret, js_code):
     if None in (appid, secret, js_code):
         return 3, None, None, None, None
@@ -68,15 +84,15 @@ def GetOpenid(database, appid, secret, js_code):
     if not "openid" in str(text):
         return 1, None, None, None, None
     openid = jtext["openid"]
-    errcode, identity, id, name = CheckBind(database, openid)
+    errcode, identity, id, name, _ = CheckBind(database, openid)
     return errcode, identity, id, name, openid
 
 def CheckBind(database, openid):
-    status, identity, id, name = database.CheckBind(openid)
+    status, identity, id, name, _openid = database.CheckBind(openid)
     if status:
-        return 0, identity, id, name
+        return 0, identity, id, name, _openid
     else:
-        return 2, identity, None, None
+        return 2, identity, None, None, _openid
 
 def BindOpenid(database, openid, id, identity_number):
     if None in (openid, id, identity_number):
@@ -92,6 +108,39 @@ def BindOpenid(database, openid, id, identity_number):
     
     return 0, result, identity, id, name
 
+def TeacherScan(database, room, _time):
+    if None in (room, _time):
+        return 3, None
+    room = str(room)
+    _time = int(_time)
+    level = Stamp2Level(_time)
+    stamp = int(_time // 86400 * 86400 - 28800)
+    l, _ = Level2Stamp(level)
+    startStamp = stamp + l
+    result = database.TeacherScan(room, startStamp)
+    if result == None:
+        return 6, None 
+    result["_id"] = str(result["_id"])
+    return 0, result
+
+def CheckException(database, room, campus, row, col, startStamp, endStamp):
+    result = database.CheckException(room, campus, row, col, startStamp, endStamp)
+    return result
+
+def UnCheckException(database, openid, room, campus, row, col, startStamp, endStamp):
+    result = database.UnCheckException(openid, room, campus, startStamp, endStamp)
+    return result
+
+def ChangeStudentRecord(database, recordid, exception, late, row, col, comment):
+    if recordid == None:
+        return 3, None
+
+    recordid = bson.ObjectId(recordid)
+    database.ChangeStudentRecord(recordid, exception, late, row, col, comment)
+    return 0
+    
+    
+
 def UploadRecord(database, openid, room, campus, row, col, _time):
     if None in (openid, room, campus, row, col, _time):
         return 3, None
@@ -103,7 +152,7 @@ def UploadRecord(database, openid, room, campus, row, col, _time):
     col = int(col)
     _time = int(_time)
 
-    status, _, _, _ = database.CheckBind(openid)
+    status, _, id, name, _ = database.CheckBind(openid)
     if status == False:
         return 2, None
     level = Stamp2Level(_time)
@@ -112,37 +161,93 @@ def UploadRecord(database, openid, room, campus, row, col, _time):
 
     l, r = Level2Stamp(level)
     startStamp, endStamp = stamp + l, stamp + r
-    if not database.CheckSeatAvailable(room, campus, row, col, startStamp, endStamp):
-        return 5, None
 
+    UnCheckException(database, openid, room, campus, row, col, startStamp, endStamp)
+
+    isSwitchSeat = False
     if not database.CheckStudentAvailable(openid, startStamp, endStamp):
+        isSwitchSeat = True
         result = database.SwitchSeat(openid, room, campus, row, col, startStamp, endStamp)
-        return 0, result
 
-    result = database.UploadRecord(openid, room, campus, row, col, _time, level, late)
+    course = database.ChangeCourseStatus(room, startStamp, level, late, isSwitchSeat)
+    logging.debug("course: " + str(course))
+    isNoCourse = False
+    if course == None and not isSwitchSeat:
+        isNoCourse = True
+        logging.debug("isNoCourse true")
+        
+        result = database.UploadRecord(openid, room, campus, row, col, _time, level, late, "", "", "", "", id, name, False)
+    elif course != None and not isSwitchSeat:
+        isNoCourse = False
+        logging.debug("isNoCourse false")
+        result = database.UploadRecord(openid, room, campus, row, col, _time, level, late, course["_courseid"], course["_name"], course["_teacherid"], course["_teacher"], id, name, False)
+    
+    CheckException(database, room, campus, row, col, startStamp, endStamp)
+
     if result == None:
         return 6, None 
-    return 0, result
 
-def GetStudentHistory(database, openid, startTime):
-    if None in (openid, startTime):
+    if isNoCourse and not isSwitchSeat:
+        return 7, result
+    elif isNoCourse and isSwitchSeat:
+        return 9, result
+    elif not isNoCourse and isSwitchSeat:
+        return 8, result
+    else:
+        return 0, result
+
+
+
+def GetStudentHistory(database, openid, startTime, stamp, stuid):
+    if None == openid and None == stuid:
         return 3, None
-    
-    openid = str(openid)
-    startTime = str(startTime)
+    if startTime != None:
+        startTime = str(startTime)
+        endStamp = int(time.time())
+        startStamp = int(time.mktime(time.strptime(startTime, "%Y-%m-%d")))
+    elif stamp != None:
+        stamp = int(stamp)
+        level = Stamp2Level(stamp)
+        baseStamp = int((stamp + 28800) // 86400 * 86400 - 28800)
+        l, r = Level2Stamp(level)
+        startStamp, endStamp = l + baseStamp, r + baseStamp
 
-    status, _, _, _ = database.CheckBind(openid)
+    if openid != None:
+        status, _, _, _, _ = database.CheckBind(openid)
+    else:
+        status, _, _, _, openid = database.CheckBind(stuid, qtype="id")
+
     if status == False:
         return 2, None
 
-    endStamp = int(time.time())
-    startStamp = int(time.mktime(time.strptime(startTime, "%Y-%m-%d")))
+
+    logging.debug(startStamp, endStamp)
     histories = database.GetStudentHistory(openid, startStamp, endStamp)
     result = []
     for history in histories:
         history["_id"] = str(history["_id"])
         result.append(history)
     return 0, {"res": result, "count": len(result)}
+
+
+def GetTeacherHistory(database, teaid, startTime):
+    if None in (teaid, startTime):
+        return 3, None
+    
+    teaid = str(teaid)
+    startTime = str(startTime)
+
+    endStamp = int(time.time())
+    startStamp = int(time.mktime(time.strptime(startTime, "%Y-%m-%d")))
+    logging.debug(startStamp, endStamp)
+    histories = database.GetTeacherHistory(teaid, startStamp, endStamp)
+    result = []
+    for history in histories:
+        history["_id"] = str(history["_id"])
+        logging.debug(f'history["_id"], {history["_id"]}')
+        result.append(history)
+    return 0, {"res": result, "count": len(result)}
+
 
 def GetRoomHistory(database, room, _time):
     if None in (room, _time):
@@ -167,9 +272,9 @@ def GetRoomHistoryByStamp(database, room, _time):
     if None in (room, _time):
         return 3, None
     
-    _time = str(_time)
+    _time = int(_time)
     room = str(room)
-    stamp = int(_time // 86400 * 86400 - 28800)
+    stamp = int((_time + 28800) // 86400 * 86400 - 28800)
     level = Stamp2Level(_time)
     l, r = Level2Stamp(level)
     startStamp, endStamp = stamp + l, stamp + r
@@ -185,52 +290,116 @@ def GetRoomCourse(database, room, _time):
     if None in (room, _time):
         return 3, None
     
-    r = [{"res": {"_name": "数据结构", "_teacher": "高航"}, "count": 1}, {"res": None, "count": 0}]
-    return 0, r[int(time.time() % 2)]
-    # _time = str(_time)
-    # room = str(room)
-    # level = _time.split()[1]
-    # _time = _time.split()[0]
-    # stamp =  time.mktime(time.strptime(_time + " 00:00:00", "%Y-%m-%d %H:%M:%S"))
-    # l, r = Level2Stamp(level)
-    # startStamp, endStamp = stamp + l, stamp + r
+    _time = str(_time)
+    room = str(room)
+    level = _time.split()[1]
+    _time = _time.split()[0]
+    stamp =  time.mktime(time.strptime(_time + " 00:00:00", "%Y-%m-%d %H:%M:%S"))
+    l, _ = Level2Stamp(level)
+    startStamp = stamp + l
 
-    # histories = database.GetRoomCourse(room, startStamp, endStamp)
-    # result = []
-    # for history in histories:
-    #     history["_id"] = str(history["_id"])
-    #     result.append(history)
-    # return 0, {"res": result, "count": len(result)}
+    result = database.GetRoomCourse(room, startStamp)
+    if result == None:
+        return 10, None 
+    result["_id"] = str(result["_id"])
+    return 0, result
 
 def GetRoomCourseByStamp(database, room, _time):
     if None in (room, _time):
         return 3, None
 
-    r = [{"res": {"_name": "数据结构", "_teacher": "高航"}, "count": 1}, {"res": None, "count": 0}]
+    _time = int(_time)
+    room = str(room)
+    stamp = int((_time + 28800) // 86400 * 86400 - 28800)
+    level = Stamp2Level(_time)
+    logging.debug(level)
+    l, _ = Level2Stamp(level)
+    logging.debug(l)
+    startStamp = stamp + l
+    
+    result = database.GetRoomCourse(room, startStamp)
+    if result == None:
+        return 10, None 
+    result["_id"] = str(result["_id"])
+    return 0, result
 
-    return 0, r[int(time.time() % 2)]
-    # _time = str(_time)
-    # room = str(room)
-    # stamp = int(_time // 86400 * 86400 - 28800)
-    # level = Stamp2Level(_time)
-    # l, r = Level2Stamp(level)
-    # startStamp, endStamp = stamp + l, stamp + r
+def GetStudentCourse(database, stuid, _time):
+    if None in (stuid, _time):
+        return 3, None
+    
+    _time = str(_time)
+    stuid = str(stuid)
+    level = _time.split()[1]
+    _time = _time.split()[0]
+    stamp =  time.mktime(time.strptime(_time + " 00:00:00", "%Y-%m-%d %H:%M:%S"))
+    l, _ = Level2Stamp(level)
+    startStamp = stamp + l
 
-    # histories = database.GetRoomCourse(room, startStamp, endStamp)
-    # result = []
-    # for history in histories:
-    #     history["_id"] = str(history["_id"])
-    #     result.append(history)
-    # return 0, {"res": result, "count": len(result)}
+    result = database.GetStudentCourse(stuid, startStamp)
+    if result == None:
+        return 10, None 
+    result["_id"] = str(result["_id"])
+    if result["_start_stamp"] == startStamp:
+        return 0, result
+    else:
+        return 11, result
 
+def GetStudentCourseByStamp(database, stuid, _time):
+    if None in (stuid, _time):
+        return 3, None
 
-# def GetTeacherHistory(openid, time):
-#     if None in (openid, time):
-#         return False, None
-#     level = time.split()[1]
-#     time = time.split()[0]
-#     stamp = int(time.mktime(time.strptime(time, "%Y-%m-%d")))
-#     l, r = Level2Stamp(level)
-#     startStamp, endStamp = stamp + l, stamp + r
+    _time = int(_time)
+    stuid = str(stuid)
+    stamp = int((_time + 28800) // 86400 * 86400 - 28800)
+    level = Stamp2Level(_time)
+    l, _ = Level2Stamp(level)
+    startStamp = stamp + l
+    result = database.GetStudentCourse(stuid, startStamp)
+    if result == None:
+        return 10, None 
+    result["_id"] = str(result["_id"])
+    if result["_start_stamp"] == startStamp:
+        return 0, result
+    else:
+        return 11, result
 
-#     return True, [123, "21r12r"]
+def GetTeacherCourse(database, teaid, _time):
+    if None in (teaid, _time):
+        return 3, None
+    
+    _time = str(_time)
+    teaid = str(teaid)
+    level = _time.split()[1]
+    _time = _time.split()[0]
+    stamp =  time.mktime(time.strptime(_time + " 00:00:00", "%Y-%m-%d %H:%M:%S"))
+    l, _ = Level2Stamp(level)
+    startStamp = stamp + l
+
+    result = database.GetTeacherCourse(teaid, startStamp)
+    if result == None:
+        return 10, None 
+    result["_id"] = str(result["_id"])
+    if result["_start_stamp"] == startStamp:
+        return 0, result
+    else:
+        return 11, result
+
+def GetTeacherCourseByStamp(database, teaid, _time):
+    if None in (teaid, _time):
+        return 3, None
+
+    _time = int(_time)
+    teaid = str(teaid)
+    stamp = int((_time + 28800) // 86400 * 86400 - 28800)
+    level = Stamp2Level(_time)
+    l, _ = Level2Stamp(level)
+    startStamp = stamp + l
+    result = database.GetTeacherCourse(teaid, startStamp)
+    if result == None:
+        return 10, None 
+    result["_id"] = str(result["_id"])
+    logging.debug(f"get teacher course _startstamp: {startStamp}, result['_start_stamp']: {result['_start_stamp']}")
+    if result["_start_stamp"] == startStamp:
+        return 0, result
+    else:
+        return 11, result
