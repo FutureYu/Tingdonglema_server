@@ -205,6 +205,7 @@ def GetStudentHistory(database, openid, startTime, stamp, stuid):
         startTime = str(startTime)
         endStamp = int(time.time())
         startStamp = int(time.mktime(time.strptime(startTime, "%Y-%m-%d")))
+
     elif stamp != None:
         stamp = int(stamp)
         level = Stamp2Level(stamp)
@@ -221,10 +222,11 @@ def GetStudentHistory(database, openid, startTime, stamp, stuid):
         return 2, None
 
 
-    logging.debug(startStamp, endStamp)
+    logging.debug(openid)
     histories = database.GetStudentHistory(openid, startStamp, endStamp)
     result = []
     for history in histories:
+        logging.debug("hasduihu")
         history["_id"] = str(history["_id"])
         result.append(history)
     return 0, {"res": result, "count": len(result)}
