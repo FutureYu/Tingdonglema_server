@@ -85,7 +85,6 @@ def UploadRecord():
     _time = request.json.get('time')   
     logging.info("Get openid: " + str(openid))
     logging.info("Get room: " + str(room))
-    logging.info("Get openid: " + str(openid))
     logging.info("Get campus: " + str(campus))
     logging.info("Get row: " + str(row))
     logging.info("Get col: " + str(col))
