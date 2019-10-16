@@ -21,10 +21,11 @@ errmsgs = [
     "Switch seat success", # 8
     "No Course and Switch Seat", # 9
     "No results in database", # 10
-    "Get future course"]
+    "Get future course", # 11
+    "The user has been bound"]
 
 
-logging.info("V2.0.0!")
+logging.info("V2.1.0!")
 
 @api.route('/GetStudentInfo', methods=['GET'])
 def GetStudentInfo():
@@ -60,6 +61,7 @@ def BindOpenid():
     logging.info("Get id: " + str(id))
     logging.info("Get identity_number: " + str(identity_number))
     errcode, recordid, identity, id, name = data.BindOpenid(database, openid, id, identity_number)
+    logging.debug(errcode)
     res = {"errcode": errcode, "errmsg": errmsgs[errcode], "recordid": recordid, "identity": identity, "id": id, "openid": openid, "name": name}
     logging.info("Return: " + str(res))
     return jsonify(res)
@@ -143,19 +145,6 @@ def GetRoomHistory():
     logging.info("Return: " + str(res))
     return jsonify(res)
 
-@api.route('/GetRoomHistoryByStamp', methods=['GET'])
-def GetRoomHistoryByStamp():
-    room = request.args.get('room')
-    _time = request.args.get('time')
-    logging.info("Get room: " + str(room))
-    logging.info("Get time: " + str(_time))
-
-    errcode, record = data.GetRoomHistoryByStamp(database, room, _time)
-
-    res = {"errcode": errcode, "record": record}
-    logging.info("Return: " + str(res))
-    return jsonify(res)
-
 
 @api.route('/GetRoomCourse', methods=['GET'])
 def GetRoomCourse():
@@ -165,19 +154,6 @@ def GetRoomCourse():
     logging.info("Get time: " + str(_time))
 
     errcode, record = data.GetRoomCourse(database, room, _time)
-
-    res = {"errcode": errcode, "record": record}
-    logging.info("Return: " + str(res))
-    return jsonify(res)
-
-@api.route('/GetRoomCourseByStamp', methods=['GET'])
-def GetRoomCourseByStamp():
-    room = request.args.get('room')
-    _time = request.args.get('time')
-    logging.info("Get room: " + str(room))
-    logging.info("Get time: " + str(_time))
-
-    errcode, record = data.GetRoomCourseByStamp(database, room, _time)
 
     res = {"errcode": errcode, "record": record}
     logging.info("Return: " + str(res))
@@ -197,20 +173,6 @@ def GetStudentCourse():
     logging.info("Return: " + str(res))
     return jsonify(res)
 
-@api.route('/GetStudentCourseByStamp', methods=['GET'])
-def GetStudentCourseByStamp():
-    stuid = request.args.get('stuid')
-    _time = request.args.get('time')
-    logging.info("Get stuid: " + str(stuid))
-    logging.info("Get time: " + str(_time))
-
-    errcode, record = data.GetStudentCourseByStamp(database, stuid, _time)
-
-    res = {"errcode": errcode, "record": record}
-    logging.info("Return: " + str(res))
-    return jsonify(res)
-
-
 @api.route('/GetTeacherCourse', methods=['GET'])
 def GetTeacherCourse():
     teaid = request.args.get('teaid')
@@ -220,23 +182,11 @@ def GetTeacherCourse():
 
     errcode, record = data.GetTeacherCourse(database, teaid, _time)
 
-    res = {"errcode": errcode, "record": record}
-    logging.info("Return: " + str(res))
-    return jsonify(res)
-
-@api.route('/GetTeacherCourseByStamp', methods=['GET'])
-def GetTeacherCourseByStamp():
-    teaid = request.args.get('teaid')
-    _time = request.args.get('time')
-    logging.info("Get teaid: " + str(teaid))
-    logging.info("Get time: " + str(_time))
-
-    errcode, record = data.GetTeacherCourseByStamp(database, teaid, _time)
     if record == None:
         res = {"errcode": errcode, "errmsg": errmsgs[errcode], "record": None}
         logging.info("Return: " + str(res))
         return jsonify(res) 
-    _, scans = data.GetRoomHistoryByStamp(database, record["_room"], _time)
+    _, scans = data.GetRoomHistory(database, record["_room"], _time)
     details = {"total": [], "absent": [], "late": [], "intime": [], "exception": []}
 
     for rec in record["_stus"]:
@@ -258,6 +208,7 @@ def GetTeacherCourseByStamp():
     logging.info("Return: " + str(res))
     return jsonify(res)
 
+
 @api.route('/GetTeacherHistory', methods=['GET'])
 def GetTeacherHistory():
     teaid = request.args.get('teaid')
@@ -271,10 +222,39 @@ def GetTeacherHistory():
     logging.info("Return: " + str(res))
     return jsonify(res)
 
+@api.route('/GetStudentData', methods=['GET'])
+def GetStudentData():
+    teaid = request.args.get('teaid')
+    campus = request.args.get('campus')
+    room = request.args.get('room')
+    level = request.args.get('level')
+    late = request.args.get('late')
+    courseid = request.args.get('courseid')
+    stuid = request.args.get('stuid')
+    exception = request.args.get('exception')
+    startTime = request.args.get('startTime')
+    endTime = request.args.get('endTime')
+    logging.info("Get teaid: " + str(teaid))
+    logging.info("Get campus: " + str(campus))
+    logging.info("Get room: " + str(room))
+    logging.info("Get level: " + str(level))
+    logging.info("Get late: " + str(late))
+    logging.info("Get courseid: " + str(courseid))
+    logging.info("Get stuid: " + str(stuid))
+    logging.info("Get exception: " + str(exception))
+    logging.info("Get startTime: " + str(startTime))
+    logging.info("Get endTime: " + str(endTime))
+
+    errcode, records = data.GetStudentData(database, teaid, campus, room, level, late, courseid, stuid, exception, startTime, endTime)
+
+    res = {"errcode": errcode, "errmsg": errmsgs[errcode], "records": records}
+    logging.info("Return: " + str(res))
+    return jsonify(res)
+
 
 @api.route('/doc', methods=['GET'])
 def doc():
-    with open("api_2_0_0/doc.md", "r") as f:
+    with open("api_2_1_0/doc.md", "r") as f:
         text = f.read()
         html = markdown.markdown(text)
     return html

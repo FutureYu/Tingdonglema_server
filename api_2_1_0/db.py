@@ -3,7 +3,7 @@ import logging
 
 class DataBase:
     def __init__(self, db_name):
-                self.db = pymongo.MongoClient('mongodb://server:tdlm_server123@checkin.nuaaweyes.com/', 27017)[db_name]
+        self.db = pymongo.MongoClient('mongodb://server:tdlm_server123@checkin.nuaaweyes.com/', 27017)[db_name]
  
     def CheckBind(self, openid, qtype="openid"):
         mycol = self.db["user"]
@@ -23,9 +23,9 @@ class DataBase:
         query = {"_id": id, "_identity_number": identity_number} 
         mydoc = mycol.find_one(query)
         if mydoc == None:
-            return None, None, None, None
+            return 4, None, None, None
         if mydoc["_openid"] != "null" and mydoc["_openid"] != "" :
-            return None, None, None, None
+            return 12, None, None, None
         
         newvalues = { "$set": { "_openid": openid } }
         mycol.update_one(query, newvalues)
@@ -59,7 +59,7 @@ class DataBase:
         mycol = self.db["record"]
         query = { '$and': [ { '_time':{'$gte':startStamp}  }, {'_time':{'$lt':endStamp} } ], '_room': room, "_campus": campus, "_row": row, "_col": col}
         mydoc = mycol.find(query)
-        if mydoc.count() > 2:
+        if mydoc.count() >= 2:
             newvalues = { "$set": { "_exception": True}}
             mycol.update_many(query, newvalues)
             return True
@@ -183,3 +183,28 @@ class DataBase:
         mycol.update_one(query, newvalues)
         
         return mydoc
+
+def GetStudentData(self, teaid, campus, room, level, late, courseid, stuid, exception, startStamp, endStamp):
+    mycol = self.db["record"]
+    query = { '$and': [ { '_time':{'$gte':startStamp}  }, {'_time':{'$lt':endStamp} } ], "_teacherid": teaid}
+    if campus != None:
+        query["_campus"] = campus
+    if room != None:
+        query["_room"] = room
+    if level != None:
+        query["_level"] = level
+    if late != None:
+        query["_late"] = late
+    if courseid != None:
+        query["_courseid"] = courseid
+    if stuid != None:
+        query["_stuid"] = stuid
+    if exception != None:
+        query["_exception"] = exception
+    
+    mydoc = mycol.find(query).sort('_time', pymongo.ASCENDING).limit(1)  
+    if mydoc.count() == 0:
+        return None
+    for doc in mydoc:
+        doc["_id"] = str(doc["_id"])
+    return mydoc
