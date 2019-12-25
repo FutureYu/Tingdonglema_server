@@ -9,6 +9,8 @@ from . import api
 from . import database
 from . import data
 
+from bson.json_util import dumps
+
 errmsgs = [
     "Success", # 0
     "Can't get openid from wechat server", # 1
@@ -22,7 +24,12 @@ errmsgs = [
     "No Course and Switch Seat", # 9
     "No results in database", # 10
     "Get future course", # 11
-    "The user has been bound"]
+    "The user has been bound", #12
+    "The user is not on the list", #13
+    "",
+    "",
+    "",
+    ""]
 
 
 logging.info("V2.1.0!")
@@ -173,6 +180,21 @@ def GetStudentCourse():
     logging.info("Return: " + str(res))
     return jsonify(res)
 
+
+@api.route('/GetStudentLocation', methods=['GET'])
+# 废弃
+def GetStudentLocation():
+    stuid = request.args.get('stuid')
+    _time = request.args.get('time')
+    logging.info("Get stuid: " + str(stuid))
+    logging.info("Get time: " + str(_time))
+
+    errcode, record = data.GetStudentLocation(database, stuid, _time)
+
+    res = {"errcode": errcode, "record": record}
+    logging.info("Return: " + str(res))
+    abort(404)
+
 @api.route('/GetTeacherCourse', methods=['GET'])
 def GetTeacherCourse():
     teaid = request.args.get('teaid')
@@ -185,14 +207,17 @@ def GetTeacherCourse():
     if record == None:
         res = {"errcode": errcode, "errmsg": errmsgs[errcode], "record": None}
         logging.info("Return: " + str(res))
-        return jsonify(res) 
+        return jsonify(res)
     _, scans = data.GetRoomHistory(database, record["_room"], _time)
-    details = {"total": [], "absent": [], "late": [], "intime": [], "exception": []}
+    details = {"total": [], "absent": [], "late": [], "intime": [], "exception": [], "off": []}
 
     for rec in record["_stus"]:
         _, _, id, name = data.GetStudentInfo(database, None, rec)
         details["total"].append({"id": id, "name": name})
-        details["absent"].append({"id": id, "name": name})
+        if '_askforleave' in record and id in record["_askforleave"]:
+            details['off'].append({"id": id, "name": name})
+        else:
+            details["absent"].append({"id": id, "name": name})
     for scan in scans["res"]:
         if scan["_exception"] == True:
             details["exception"].append(scan)
@@ -251,6 +276,16 @@ def GetStudentData():
     logging.info("Return: " + str(res))
     return jsonify(res)
 
+@api.route('/SetStudentOff', methods=['GET'])
+def SetStudentOff():
+    stuid = request.args.get('stuid')
+    room = request.args.get('room')
+    startTime = request.args.get('startTime')
+    teaid = request.args.get('teaid')
+    errcode, records = data.SetStudentOff(database, stuid, teaid, room, startTime)
+    res = {"errcode": errcode, "errmsg": errmsgs[errcode], "records": records}
+    logging.info("Return: " + str(res))
+    return dumps(res)
 
 @api.route('/doc', methods=['GET'])
 def doc():

@@ -104,10 +104,8 @@ def BindOpenid(database, openid, id, identity_number):
     identity_number = str(identity_number)
 
     result, identity, id, name = database.BindOpenid(openid, id, identity_number)
-    if result == 4:
-        return 4, None, None, None, None  
-    elif result == 12:
-        return 12, None, None, None, None
+    if result == 13 or result == 12 or result == 4:
+        return result, None, None, None, None  
     
     return 0, result, identity, id, name
 
@@ -163,6 +161,8 @@ def UploadRecord(database, openid, room, campus, row, col, _time):
     stamp = int(_time // 86400 * 86400 - 28800)
 
     l, r = Level2Stamp(level)
+    stdl, _ = Stdlevel2Stamp(level)
+    stdStartStamp = stamp + stdl
     startStamp, endStamp = stamp + l, stamp + r
 
     UnCheckException(database, openid, room, campus, row, col, startStamp, endStamp)
@@ -184,9 +184,13 @@ def UploadRecord(database, openid, room, campus, row, col, _time):
     elif course != None and not isSwitchSeat:
         isNoCourse = False
         logging.debug("isNoCourse false")
-        result = database.UploadRecord(openid, room, campus, row, col, _time, level, late, course["_courseid"], course["_name"], course["_teacherid"], course["_teacher"], id, name, False)
+        if row == col == 0:
+            result = database.UploadRecord(openid, room, campus, row, col, stdStartStamp, level, late, course["_courseid"], course["_name"], course["_teacherid"], course["_teacher"], id, name, False, "请假")
+        else:
+            result = database.UploadRecord(openid, room, campus, row, col, _time, level, late, course["_courseid"], course["_name"], course["_teacherid"], course["_teacher"], id, name, False, "")
     
-    CheckException(database, room, campus, row, col, startStamp, endStamp)
+    if not row == col == 0:
+        CheckException(database, room, campus, row, col, startStamp, endStamp)
 
     if result == None:
         return 6, None 
@@ -255,7 +259,7 @@ def GetTeacherHistory(database, teaid, startTime):
         history["_id"] = str(history["_id"])
         logging.debug(f'history["_id"], {history["_id"]}')
         result.append(history)
-    return 0, {"res": result, "count": len(result)}
+    return 0, {"res": result, "count": len(result), "startStamp": startStamp} 
 
 
 def GetRoomHistory(database, room, _time):
@@ -333,6 +337,29 @@ def GetStudentCourse(database, stuid, _time):
     else:
         return 11, result
 
+def GetStudentLocation(database, stuid, _time):
+    if None in (stuid, _time):
+        return 3, None
+    
+    stuid = str(stuid)
+    if "-" in str(_time):
+        _time = str(_time)
+        level = _time.split()[1]
+        _time = _time.split()[0]
+        stamp =  time.mktime(time.strptime(_time + " 00:00:00", "%Y-%m-%d %H:%M:%S"))
+    else:
+        _time = int(_time)
+        stamp = int((_time + 28800) // 86400 * 86400 - 28800)
+        level = Stamp2Level(_time)
+    l, r = Level2Stamp(level)
+    startStamp = stamp + l
+    endStamp = stamp + r
+    
+    result = database.GetStudentLocation(stuid, startStamp, endStamp)
+    if result == None:
+        return 10, None 
+    return 0, result
+
 
 def GetTeacherCourse(database, teaid, _time):
     if None in (teaid, _time):
@@ -355,7 +382,7 @@ def GetTeacherCourse(database, teaid, _time):
     if result == None:
         return 10, None 
     result["_id"] = str(result["_id"])
-    logging.debug(f"get teacher course _startstamp: {startStamp}, result['_start_stamp']: {result['_start_stamp']}")
+    logging.info(f"get teacher course _startstamp: {startStamp}, result['_start_stamp']: {result['_start_stamp']}")
     if result["_start_stamp"] == startStamp:
         return 0, result
     else:
@@ -395,3 +422,17 @@ def GetStudentData(database, teaid, campus, room, level, late, courseid, stuid, 
       
     #excel.save('RercordDatas/answer.xlsx') 
     return 0, records
+
+def SetStudentOff(database, stuid, teaid, room, startTime):
+    if None in (room, startTime, stuid, teaid):
+        return 3, None
+    stuid = str(stuid)
+    room = str(room)
+    startTime = int(startTime)
+    teaid = str(teaid)
+    res = database.InsertAskForLeave(stuid, teaid, room, startTime)
+    if not res:
+        return 10, res
+    else:
+        return 0, res
+

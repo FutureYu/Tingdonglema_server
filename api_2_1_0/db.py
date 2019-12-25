@@ -9,6 +9,7 @@ class DataBase:
         mycol = self.db["user"]
         query = {f"_{qtype}": openid} 
         mydoc = mycol.find_one(query)
+
         if mydoc == None:
             return False, 0, None, None, None
         if mydoc["_openid"] == "null" or mydoc["_openid"] == "":
@@ -17,12 +18,16 @@ class DataBase:
             return True, 1, mydoc["_id"], mydoc["_name"], mydoc["_openid"]
         elif mydoc["_is_student"] == False:
             return True, 2, mydoc["_id"], mydoc["_name"], mydoc["_openid"]
+        else:
+            return False, 0, None, None, None
 
     def BindOpenid(self, openid, id, identity_number):
         mycol = self.db["user"]
-        query = {"_id": id, "_identity_number": identity_number} 
+        query = {"_id": id} 
         mydoc = mycol.find_one(query)
         if mydoc == None:
+            return 13, None, None, None
+        if mydoc["_identity_number"] != identity_number:
             return 4, None, None, None
         if mydoc["_openid"] != "null" and mydoc["_openid"] != "" :
             return 12, None, None, None
@@ -34,10 +39,9 @@ class DataBase:
         elif mydoc["_is_student"] == False:
             return id, 2, mydoc["_id"], mydoc["_name"]
 
-    def UploadRecord(self, openid, room, campus, row, col, time, level, late, courseid, course_name, teacherid, teacher_name, stuid, name, cheat):
+    def UploadRecord(self, openid, room, campus, row, col, time, level, late, courseid, course_name, teacherid, teacher_name, stuid, name, cheat, comment):
         mycol = self.db["record"]
-        logging.debug("upload!!!")
-        newvalues = {"_openid": openid, "_campus": campus, "_room": room, "_row": row, "_col": col, "_time": time, "_level": level, "_late": late, "_courseid": courseid, "_teacherid": teacherid, "_course_name": course_name, "_teacher_name": teacher_name, "_stuid": stuid, "_stu_name": name, "_exception": cheat, "_comment": ""}
+        newvalues = {"_openid": openid, "_campus": campus, "_room": room, "_row": row, "_col": col, "_time": time, "_level": level, "_late": late, "_courseid": courseid, "_teacherid": teacherid, "_course_name": course_name, "_teacher_name": teacher_name, "_stuid": stuid, "_stu_name": name, "_exception": cheat, "_comment": comment}
         mycol.insert_one(newvalues)
         return newvalues
 
@@ -124,7 +128,7 @@ class DataBase:
     def GetTeacherHistory(self, teaid, startStamp, endStamp):
         mycol = self.db["course"]
         query = { '$and': [ { '_start_stamp':{'$gte':startStamp}  }, {'_start_stamp':{'$lt':endStamp} } ], '_teacherid': teaid}
-        mydoc = mycol.find(query)
+        mydoc = mycol.find(query).sort('_start_stamp',pymongo.DESCENDING)
         return mydoc
 
     def GetRoomHistory(self, room, startStamp, endStamp):
@@ -155,6 +159,12 @@ class DataBase:
             return None
         return mydoc[0]
 
+    def GetStudentLocation(self, stuid, startStamp, endStamp):
+        mycol = self.db["record"]
+        query = {  '$and': [ { '_time':{'$gte':startStamp}  }, {'_time':{'$lt':endStamp} } ], '_stuid': stuid}
+        mydoc = mycol.find_one(query)
+        return mydoc
+
     def GetTeacherCourse(self, teaid, startStamp):
         mycol = self.db["course"]
         query = { "_start_stamp": {'$gte': startStamp}, '_teacherid': teaid}
@@ -183,6 +193,26 @@ class DataBase:
         mycol.update_one(query, newvalues)
         
         return mydoc
+
+    def InsertAskForLeave(self, stuid, teaid, room, startStamp):
+        mycol = self.db["course"]
+        query = { "_start_stamp": startStamp, '_room': room, '_teacherid': teaid}
+        mydoc = mycol.find_one(query)
+        logging.info(mydoc)
+        if mydoc == None:
+            return None
+        if stuid not in mydoc['_stus']:
+            return None
+        if '_askforleave' not in mydoc:
+            mycol.update_one(query, {"$set": {"_askforleave": []}})
+            mydoc = mycol.find_one(query)
+        orig_list = mydoc['_askforleave']
+        if stuid not in orig_list:
+            orig_list.append(stuid)
+        newvalues = {"$set": {"_askforleave": orig_list}}
+        mycol.update_one(query, newvalues)
+        return mydoc
+
 
 def GetStudentData(self, teaid, campus, room, level, late, courseid, stuid, exception, startStamp, endStamp):
     mycol = self.db["record"]

@@ -11,6 +11,7 @@
 * /api/v2.1.0/UploadRecord [post]
     * 作用：上传用户扫码信息，当用户在同一节课重复扫码时，会更新数据库
     * 接收：openid, room, campus, row, col, time: 格式为 时间戳
+    * 当用户请假时，将 row 与 col 置为 0，并上传一个在签到时间段的时间戳，服务器会将该时间戳自动转换为上课开始时间
     * 返回：0 7 8 9 上传成功，返回本次数据库的所有数据；2；3；5；6
         
 * /api/v2.1.0/GetStudentHistory [get]
@@ -44,6 +45,11 @@
     * 接收：stuid: 学号, time: 格式为yyyy-mm-dd l **或** 时间戳
     * 返回：0 上传成功，返回本次的数据列表；3；10；11
 
+* **/api/v2.1.0/GetStudentLocation [get] (废弃)**
+    * 作用：查询学生位置
+    * 接收：stuid: 学号, time: 格式为yyyy-mm-dd l **或** 时间戳
+    * 返回：0 上传成功，返回本次的数据列表；10
+
 * **/api/v2.1.0/GetStudentCourseByStamp [get] (删除)**
     * 作用：查询学生当前或最近课程
     * 接收：stuid：学号,  time：时间戳
@@ -63,7 +69,7 @@
 * /api/v2.1.0/GetTeacherHistory [get]
     * 作用：查询老师授课记录
     * 接收：openid, startTime: 查询开始日期, 格式为yyyy-mm-dd 
-    * 返回：0 上传成功，返回本次的数据列表,包含结果，获取个数；3；
+    * 返回：0 上传成功，返回本次的数据列表,包含结果，获取个数，**（新增）以及本次记录课程的开始签到时间戳（startStamp）**；3；
 
 * /api/v2.1.0/TeacherScan [post]
     * 作用：记录老师签到
@@ -125,3 +131,5 @@
 11 查询到未来课程
 
 12 再次绑定错误
+
+13 名单不在实验范围内
