@@ -8,9 +8,9 @@ import openpyxl
 def Level2Stamp(l):    
     l = int(l)
     if l == 1:
-        return (7 * 60 + 30) * 60, (9 * 60 + 45) * 60
+        return (7 * 60 + 30) * 60, (8 * 60 + 30) * 60
     elif l == 2:
-        return (9 * 60 + 45) * 60, (12 * 60) * 60
+        return (8 * 60 + 30) * 60, (12 * 60 + 30) * 60
     elif l == 3:
         return (13 * 60 + 30) * 60, (15 * 60 + 45) * 60
     elif l == 4:
@@ -25,7 +25,7 @@ def Stdlevel2Stamp(l):
     if l == 1:
         return 0, (8 * 60) * 60
     elif l == 2:
-        return (9 * 60 + 45) * 60, (10 * 60 + 15) * 60
+        return (8 * 60 + 30) * 60, (9 * 60 + 10) * 60
     elif l == 3:
         return (12 * 60) * 60, (14 * 60) * 60
     elif l == 4:
@@ -37,9 +37,9 @@ def Stdlevel2Stamp(l):
 
 def Stamp2Level(s):
     s = int(s) - (((int(s) + 28800) // 86400 * 86400) - 28800)
-    if (7 * 60 + 30) * 60 <= s < (9 * 60 + 45) * 60:
+    if (7 * 60 + 30) * 60 <= s < (8 * 60 + 30) * 60:
         return 1
-    elif (9 * 60 + 45) * 60 <= s < (12 * 60) * 60:
+    elif (8 * 60 + 30) * 60 <= s < (12 * 60 + 30) * 60:
         return 2
     elif (13 * 60 + 30) * 60 <= s < (15 * 60 + 45) * 60:
         return 3
@@ -54,7 +54,7 @@ def Stamp2Stdlevel(s):
     s = int(s) - (((int(s) + 28800) // 86400 * 86400) - 28800)
     if 0 <= s < (8 * 60) * 60:
         return 1
-    elif (9 * 60 + 45) * 60 <= s < (10 * 60 + 15) * 60:
+    elif (8 * 60 + 30) * 60 <= s < (9 * 60 + 10) * 60:
         return 2
     elif (12 * 60) * 60 <= s < (14 * 60) * 60:
         return 3
